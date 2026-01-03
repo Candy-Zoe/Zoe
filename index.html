@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<!-- 声明文档类型为HTML5 -->
+<html lang="zh-CN">
+<!-- 头部区域：包含网页元信息和外部/内部资源引用 -->
+<head>
+    <!-- 指定网页字符编码为UTF-8，确保中文等特殊字符正常显示 -->
+    <meta charset="UTF-8">
+    <!-- 适配移动设备：设置视口宽度为设备宽度，初始缩放比例1.0 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 网页标题：显示在浏览器标签栏上 -->
+    <title>我的简单网页</title>
+    <!-- 内部CSS样式：直接写在HTML中，无需外部样式文件 -->
+    <style>
+        /* 全局样式重置，清除默认边距和内边距，统一盒模型 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* 页面主体样式 */
+        body {
+            font-family: "Microsoft YaHei", sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* 标题样式 */
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #3498db;
+        }
+
+        /* 内容区域样式 */
+        .content {
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        /* 段落样式 */
+        p {
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        /* 按钮样式 */
+        button {
+            background-color: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+
+        /* 按钮悬浮效果 */
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        /* 底部样式 */
+        footer {
+            text-align: center;
+            color: #7f8c8d;
+            margin-top: 30px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<!-- 身体区域：网页的可见内容 -->
+<body>
+    <!-- 主标题 -->
+    <h1>欢迎来到我的简单网页</h1>
+
+    <!-- 核心内容区域 -->
+    <div class="content">
+        <p>这是一个完全包含在单个HTML文件中的简单网页，包含了以下核心元素：</p>
+        <ul>
+            <li>HTML5 标准文档结构</li>
+            <li>内部CSS样式（无需外部文件）</li>
+            <li>JavaScript 简单交互功能</li>
+            <li>响应式基础布局（适配电脑和移动设备）</li>
+        </ul>
+
+        <!-- 交互按钮：点击触发JavaScript事件 -->
+        <button id="greetBtn">点击我获取问候</button>
+        <p id="greetResult" style="margin-top: 20px; color: #3498db;"></p>
+    </div>
+
+    <!-- 网页底部 -->
+    <footer>
+        © 2026 我的简单网页 | 单个HTML文件实现
+    </footer>
+
+    <!-- 内部JavaScript：直接写在HTML中，实现简单交互 -->
+    <script>
+        // 等待页面DOM加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取按钮和结果显示元素
+            const greetBtn = document.getElementById('greetBtn');
+            const greetResult = document.getElementById('greetResult');
+
+            // 为按钮添加点击事件监听
+            greetBtn.addEventListener('click', function() {
+                // 定义问候语数组
+                const greetings = [
+                    '你好！欢迎访问我的简单网页 😊',
+                    '上午好！愿你今天有个好心情 ✨',
+                    '下午好！工作再忙也要记得休息 😎',
+                    '晚上好！愿你有个惬意的夜晚 🌙'
+                ];
+
+                // 随机选择一个问候语
+                const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+
+                // 显示问候语
+                greetResult.textContent = randomGreeting;
+            });
+        });
+    </script>
+</body>
+</html>
