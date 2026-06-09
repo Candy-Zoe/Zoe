@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SimplePDFParser 独立测试页</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow">JavaScript PDF 解析库</p>
+        <h1>SimplePDFParser 独立测试工具</h1>
+        <p class="hero-text">
+          这个页面把测试脚本内联到了 HTML 中，可以直接双击打开，不需要启动本地服务。
+        </p>
+      </section>
+
+      <section class="upload-card" id="dropZone">
+        <input id="fileInput" type="file" accept="application/pdf,.pdf" />
+        <div class="upload-content">
+          <span class="upload-icon">PDF</span>
+          <h2>拖拽 PDF 到这里</h2>
+          <p>或点击选择文件。解析过程在本地浏览器中完成，不会上传文件。</p>
+          <button id="pickButton" type="button">选择 PDF</button>
+        </div>
+      </section>
+
+      <section class="status" id="status">等待选择 PDF 文件。</section>
+
+      <section class="grid">
+        <article class="panel">
+          <h2>文件概览</h2>
+          <dl id="summary" class="summary-list"></dl>
+        </article>
+
+        <article class="panel">
+          <h2>元数据</h2>
+          <dl id="metadata" class="summary-list"></dl>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>警告与提示</h2>
+        <ul id="warnings" class="warnings"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>提取文本</h2>
+        <textarea id="textOutput" readonly placeholder="解析后会显示文本内容"></textarea>
+      </section>
+
+      <section class="panel">
+        <h2>流对象</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>对象 ID</th>
+                <th>过滤器</th>
+                <th>解码后长度</th>
+              </tr>
+            </thead>
+            <tbody id="streams"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>原始解析结果</h2>
+        <pre id="jsonOutput">{}</pre>
+      </section>
+    </main>
+
+    <script>
+      function bytesToBinaryString(buffer) {
+        const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+        const chunkSize = 0x8000;
+        let result = "";
+
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          result += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+        }
+
+        return result;
+      }
+
+      function binaryStringToBytes(binary) {
+        const bytes = new Uint8Array(binary.length);
+
+        for (let i = 0; i < binary.length; i += 1) {
+          bytes[i] = binary.charCodeAt(i) & 0xff;
+        }
+
+        return bytes;
+      }
+
+      function decodeLatin1(binary) {
+        try {
+          return new TextDecoder("latin1").decode(binaryStringToBytes(binary));
+        } catch {
+          return binary;
+        }
+      }
+
+      function decodeUtf8(bytes) {
+        try {
+          return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+        } catch {
+          return bytesToBinaryString(bytes);
+        }
+      }
+
+      function cleanWhitespace(value) {
+        return String(value ?? "")
+          .replace(/\u0000/g, "")
+          .replace(/[ \t\r\f\v]+/g, " ")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
+      }
+
+      function unique(values) {
+        return [...new Set(values)];
+      }
+
+      function decodePdfLiteralString(value) {
+        let output = "";
+
+        for (let i = 0; i < value.length; i += 1) {
+          const char = value[i];
+
+          if (char !== "\\") {
+            output += char;
+            continue;
+          }
+
+          const next = value[++i];
+
+          if (next === "n") output += "\n";
+          else if (next === "r") output += "\r";
+          else if (next === "t") output += "\t";
+          else if (next === "b") output += "\b";
+          else if (next === "f") output += "\f";
+          else if (next === "(" || next === ")" || next === "\\") output += next;
+          else if (/\d/.test(next)) {
+            let octal = next;
+
+            for (let j = 0; j < 2 && /\d/.test(value[i + 1]); j += 1) {
+              octal += value[++i];
+            }
+
+            output += String.fromCharCode(parseInt(octal, 8));
+          } else if (next === "\r" && value[i + 1] === "\n") {
+            i += 1;
+          } else if (next === "\n" || next === "\r") {
+          } else {
+            output += next ?? "";
+          }
+        }
+
+        return decodeLatin1(output);
+      }
+
+      function decodePdfHexString(hex) {
+        const normalized = hex.replace(/\s+/g, "");
+        const padded = normalized.length % 2 === 0 ? normalized : `${normalized}0`;
+        const bytes = new Uint8Array(padded.length / 2);
+
+        for (let i = 0; i < padded.length; i += 2) {
+          bytes[i / 2] = parseInt(padded.slice(i, i + 2), 16);
+        }
+
+        return decodeUtf8(bytes);
+      }
+
+      function readPdfString(token) {
+        const trimmed = token.trim();
+
+        if (trimmed.startsWith("(") && trimmed.endsWith(")")) {
+          return decodePdfLiteralString(trimmed.slice(1, -1));
+        }
+
+        if (trimmed.startsWith("<") && trimmed.endsWith(">") && !trimmed.startsWith("<<")) {
+          return decodePdfHexString(trimmed.slice(1, -1));
+        }
+
+        return trimmed;
+      }
+
+      function matchAllGroups(pattern, text) {
+        const matches = [];
+        let match;
+
+        while ((match = pattern.exec(text)) !== null) {
+          matches.push(match);
+        }
+
+        return matches;
+      }
+
+      function getFilters(dictionary) {
+        const filterMatch = dictionary.match(/\/Filter\s*(\[[^\]]+\]|\/[A-Za-z0-9]+)/);
+
+        if (!filterMatch) {
+          return [];
+        }
+
+        return [...filterMatch[1].matchAll(/\/([A-Za-z0-9]+)/g)].map((item) => item[1]);
+      }
+
+      function trimStreamLineBreaks(streamBody) {
+        let body = streamBody;
+
+        if (body.startsWith("\r\n")) {
+          body = body.slice(2);
+        } else if (body.startsWith("\n") || body.startsWith("\r")) {
+          body = body.slice(1);
+        }
+
+        if (body.endsWith("\r\n")) {
+          body = body.slice(0, -2);
+        } else if (body.endsWith("\n") || body.endsWith("\r")) {
+          body = body.slice(0, -1);
+        }
+
+        return body;
+      }
+
+      async function decodeStream(streamBody, dictionary = "") {
+        const filters = getFilters(dictionary);
+        let bytes = binaryStringToBytes(trimStreamLineBreaks(streamBody));
+
+        for (const filter of filters) {
+          if (filter === "FlateDecode" || filter === "Fl") {
+            if (typeof DecompressionStream !== "undefined") {
+              const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
+              bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+            }
+          }
+        }
+
+        return bytesToBinaryString(bytes);
+      }
+
+      function extractTextFromTextObject(content) {
+        const chunks = [];
+        const tokenPattern = /(\((?:\\.|[^\\()])*\)|<[\da-fA-F\s]+>)\s*(Tj|'|")|\[((?:\s*(?:\((?:\\.|[^\\()])*\)|<[\da-fA-F\s]+>|-?\d+(?:\.\d+)?))*\s*)\]\s*TJ|(T\*|Td|TD)\b/g;
+        let match;
+
+        while ((match = tokenPattern.exec(content)) !== null) {
+          if (match[1]) {
+            chunks.push(readPdfString(match[1]));
+          } else if (match[4]) {
+            chunks.push("\n");
+          } else if (match[3]) {
+            const strings = [...match[3].matchAll(/\((?:\\.|[^\\()])*\)|<[\da-fA-F\s]+>/g)]
+              .map((item) => readPdfString(item[0]))
+              .filter(Boolean);
+            chunks.push(strings.join(""));
+          }
+        }
+
+        return cleanWhitespace(chunks.join(""));
+      }
+
+      function extractTextFromContentStreams(streams) {
+        const textChunks = [];
+
+        for (const stream of streams) {
+          const blocks = matchAllGroups(/BT([\s\S]*?)ET/g, stream.decoded);
+
+          for (const block of blocks) {
+            const text = extractTextFromTextObject(block[1]);
+
+            if (text) {
+              textChunks.push(text);
+            }
+          }
+        }
+
+        return cleanWhitespace(textChunks.join("\n"));
+      }
+
+      class SimplePDFParser {
+        constructor(options = {}) {
+          this.options = {
+            parseStreams: true,
+            extractText: true,
+            ...options,
+          };
+        }
+
+        async parse(input) {
+          const buffer = await normalizeInput(input);
+          const raw = bytesToBinaryString(buffer);
+          const objects = this.parseObjects(raw);
+          const streams = this.options.parseStreams ? await this.parseStreams(objects) : [];
+          const metadata = this.extractMetadata(raw, objects);
+          const pages = this.extractPages(raw, objects);
+          const text = this.options.extractText ? extractTextFromContentStreams(streams) : "";
+
+          return {
+            header: this.extractHeader(raw),
+            version: this.extractVersion(raw),
+            fileSize: buffer.byteLength,
+            isEncrypted: /\/Encrypt\b/.test(raw),
+            startXref: this.extractStartXref(raw),
+            objectCount: objects.length,
+            pages,
+            metadata,
+            streams: streams.map((stream) => ({
+              objectId: stream.objectId,
+              filters: stream.filters,
+              decodedLength: stream.decoded.length,
+            })),
+            text,
+            objects,
+            warnings: buildWarnings(raw, text),
+          };
+        }
+
+        extractHeader(raw) {
+          return raw.match(/%PDF-[0-9.]+/)?.[0] ?? "";
+        }
+
+        extractVersion(raw) {
+          return raw.match(/%PDF-([0-9.]+)/)?.[1] ?? "";
+        }
+
+        extractStartXref(raw) {
+          const match = raw.match(/startxref\s+(\d+)/);
+          return match ? Number(match[1]) : null;
+        }
+
+        parseObjects(raw) {
+          const matches = matchAllGroups(/(\d+)\s+(\d+)\s+obj([\s\S]*?)endobj/g, raw);
+
+          return matches.map((match) => {
+            const body = match[3].trim();
+            const streamMatch = body.match(/([\s\S]*?)stream([\s\S]*?)endstream/);
+
+            return {
+              id: Number(match[1]),
+              generation: Number(match[2]),
+              body,
+              dictionary: streamMatch ? streamMatch[1].trim() : extractDictionary(body),
+              hasStream: Boolean(streamMatch),
+              streamBody: streamMatch?.[2] ?? "",
+            };
+          });
+        }
+
+        async parseStreams(objects) {
+          const streams = [];
+
+          for (const object of objects.filter((item) => item.hasStream)) {
+            try {
+              const decoded = await decodeStream(object.streamBody, object.dictionary);
+              const filters = [...object.dictionary.matchAll(/\/Filter\s*(?:\[([^\]]+)\]|\/([A-Za-z0-9]+))/g)]
+                .flatMap((match) => match[1]?.match(/\/[A-Za-z0-9]+/g) ?? [`/${match[2]}`])
+                .filter(Boolean)
+                .map((filter) => filter.replace("/", ""));
+
+              streams.push({
+                objectId: object.id,
+                dictionary: object.dictionary,
+                filters,
+                decoded,
+              });
+            } catch (error) {
+              streams.push({
+                objectId: object.id,
+                dictionary: object.dictionary,
+                filters: ["解码失败"],
+                decoded: "",
+                error: error.message,
+              });
+            }
+          }
+
+          return streams;
+        }
+
+        extractMetadata(raw, objects) {
+          const infoRef = raw.match(/\/Info\s+(\d+)\s+(\d+)\s+R/);
+          const infoObject = infoRef
+            ? objects.find((object) => object.id === Number(infoRef[1]) && object.generation === Number(infoRef[2]))
+            : null;
+          const source = infoObject?.body ?? raw;
+
+          return {
+            title: readDictionaryString(source, "Title"),
+            author: readDictionaryString(source, "Author"),
+            subject: readDictionaryString(source, "Subject"),
+            keywords: readDictionaryString(source, "Keywords"),
+            creator: readDictionaryString(source, "Creator"),
+            producer: readDictionaryString(source, "Producer"),
+            creationDate: normalizePdfDate(readDictionaryString(source, "CreationDate")),
+            modificationDate: normalizePdfDate(readDictionaryString(source, "ModDate")),
+          };
+        }
+
+        extractPages(raw, objects) {
+          const pageObjectIds = objects
+            .filter((object) => /\/Type\s*\/Page(?!s)\b/.test(object.body))
+            .map((object) => object.id);
+          const countMatches = [...raw.matchAll(/\/Type\s*\/Pages\b[\s\S]{0,300}?\/Count\s+(\d+)/g)]
+            .map((match) => Number(match[1]))
+            .filter(Number.isFinite);
+          const count = pageObjectIds.length || Math.max(0, ...countMatches);
+
+          return {
+            count,
+            objectIds: unique(pageObjectIds),
+          };
+        }
+      }
+
+      function extractDictionary(body) {
+        const match = body.match(/<<([\s\S]*?)>>/);
+        return match ? `<<${match[1]}>>` : "";
+      }
+
+      function readDictionaryString(source, key) {
+        const pattern = new RegExp(`/${key}\\s*(\\((?:\\\\.|[^\\\\()])*\\)|<[\\da-fA-F\\s]+>)`);
+        const match = source.match(pattern);
+        return match ? cleanWhitespace(readPdfString(match[1])) : "";
+      }
+
+      function normalizePdfDate(value) {
+        if (!value) {
+          return "";
+        }
+
+        const match = value.match(/^D:(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?/);
+
+        if (!match) {
+          return value;
+        }
+
+        const [, year, month = "01", day = "01", hour = "00", minute = "00", second = "00"] = match;
+        return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+      }
+
+      function buildWarnings(raw, text) {
+        const warnings = [];
+
+        if (/\/Encrypt\b/.test(raw)) {
+          warnings.push("检测到加密标记，当前轻量解析器无法解析加密 PDF 的正文。");
+        }
+
+        if (/\/ObjStm\b/.test(raw)) {
+          warnings.push("检测到对象流，部分对象可能被压缩在 ObjStm 中，轻量解析结果可能不完整。");
+        }
+
+        if (!text) {
+          warnings.push("未提取到正文文本。可能是扫描件、复杂字体编码、图片型 PDF 或浏览器不支持流解码。");
+        }
+
+        return warnings;
+      }
+
+      async function normalizeInput(input) {
+        if (input instanceof ArrayBuffer) {
+          return input;
+        }
+
+        if (input instanceof Uint8Array) {
+          return input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength);
+        }
+
+        if (input instanceof Blob) {
+          return input.arrayBuffer();
+        }
+
+        throw new TypeError("parse(input) 需要 File、Blob、ArrayBuffer 或 Uint8Array。");
+      }
+
+      const parser = new SimplePDFParser();
+      const dropZone = document.querySelector("#dropZone");
+      const fileInput = document.querySelector("#fileInput");
+      const pickButton = document.querySelector("#pickButton");
+      const statusEl = document.querySelector("#status");
+      const summaryEl = document.querySelector("#summary");
+      const metadataEl = document.querySelector("#metadata");
+      const warningsEl = document.querySelector("#warnings");
+      const textOutput = document.querySelector("#textOutput");
+      const jsonOutput = document.querySelector("#jsonOutput");
+      const streamsEl = document.querySelector("#streams");
+
+      pickButton.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", () => handleFile(fileInput.files?.[0]));
+
+      dropZone.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        dropZone.classList.add("is-dragover");
+      });
+
+      dropZone.addEventListener("dragleave", () => {
+        dropZone.classList.remove("is-dragover");
+      });
+
+      dropZone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        dropZone.classList.remove("is-dragover");
+        handleFile(event.dataTransfer.files?.[0]);
+      });
+
+      async function handleFile(file) {
+        if (!file) {
+          return;
+        }
+
+        if (!file.name.toLowerCase().endsWith(".pdf")) {
+          setStatus("请选择 PDF 文件。", true);
+          return;
+        }
+
+        try {
+          setStatus(`正在解析：${file.name}`);
+          clearResult();
+
+          const result = await parser.parse(file);
+
+          renderSummary(file, result);
+          renderMetadata(result.metadata);
+          renderWarnings(result.warnings);
+          renderStreams(result.streams);
+          textOutput.value = result.text || "未提取到文本。";
+          jsonOutput.textContent = JSON.stringify(toSerializableResult(result), null, 2);
+          setStatus(`解析完成：${file.name}`);
+        } catch (error) {
+          console.error(error);
+          setStatus(`解析失败：${error.message}`, true);
+        }
+      }
+
+      function renderSummary(file, result) {
+        renderDefinitionList(summaryEl, {
+          文件名: file.name,
+          文件大小: formatBytes(result.fileSize),
+          PDF版本: result.version || "未知",
+          Header: result.header || "未知",
+          页数: result.pages.count,
+          对象数量: result.objectCount,
+          流数量: result.streams.length,
+          加密: result.isEncrypted ? "是" : "否",
+          startxref: result.startXref ?? "未知",
+        });
+      }
+
+      function renderMetadata(metadata) {
+        renderDefinitionList(metadataEl, {
+          标题: metadata.title || "无",
+          作者: metadata.author || "无",
+          主题: metadata.subject || "无",
+          关键词: metadata.keywords || "无",
+          创建工具: metadata.creator || "无",
+          生成器: metadata.producer || "无",
+          创建时间: metadata.creationDate || "无",
+          修改时间: metadata.modificationDate || "无",
+        });
+      }
+
+      function renderDefinitionList(element, data) {
+        element.innerHTML = "";
+
+        for (const [key, value] of Object.entries(data)) {
+          const dt = document.createElement("dt");
+          const dd = document.createElement("dd");
+          dt.textContent = key;
+          dd.textContent = value;
+          element.append(dt, dd);
+        }
+      }
+
+      function renderWarnings(warnings) {
+        warningsEl.innerHTML = "";
+
+        if (!warnings.length) {
+          const item = document.createElement("li");
+          item.textContent = "没有检测到明显问题。";
+          warningsEl.append(item);
+          return;
+        }
+
+        for (const warning of warnings) {
+          const item = document.createElement("li");
+          item.textContent = warning;
+          warningsEl.append(item);
+        }
+      }
+
+      function renderStreams(streams) {
+        streamsEl.innerHTML = "";
+
+        if (!streams.length) {
+          streamsEl.innerHTML = `<tr><td colspan="3">没有发现流对象。</td></tr>`;
+          return;
+        }
+
+        for (const stream of streams) {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${escapeHtml(stream.objectId)}</td>
+            <td>${escapeHtml(stream.filters.join(", ") || "无")}</td>
+            <td>${escapeHtml(stream.decodedLength)}</td>
+          `;
+          streamsEl.append(row);
+        }
+      }
+
+      function clearResult() {
+        summaryEl.innerHTML = "";
+        metadataEl.innerHTML = "";
+        warningsEl.innerHTML = "";
+        streamsEl.innerHTML = "";
+        textOutput.value = "";
+        jsonOutput.textContent = "{}";
+      }
+
+      function setStatus(message, isError = false) {
+        statusEl.textContent = message;
+        statusEl.classList.toggle("is-error", isError);
+      }
+
+      function formatBytes(bytes) {
+        if (!Number.isFinite(bytes)) {
+          return "未知";
+        }
+
+        const units = ["B", "KB", "MB", "GB"];
+        let value = bytes;
+        let index = 0;
+
+        while (value >= 1024 && index < units.length - 1) {
+          value /= 1024;
+          index += 1;
+        }
+
+        return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      function toSerializableResult(result) {
+        return {
+          ...result,
+          objects: result.objects.map((object) => ({
+            id: object.id,
+            generation: object.generation,
+            hasStream: object.hasStream,
+            dictionary: object.dictionary,
+            bodyPreview: object.body.slice(0, 600),
+          })),
+        };
+      }
+    </script>
+  </body>
+</html>
+

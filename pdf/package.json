@@ -1,0 +1,11 @@
+{
+  "name": "simple-pdf-parser-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx serve .",
+    "check": "node -e \"import('./src/index.js').then(() => console.log('syntax ok'))\""
+  }
+}
+

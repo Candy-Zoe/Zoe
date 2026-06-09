@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF 内容查看器</title>
+    <link rel="stylesheet" href="./viewer.css" />
+  </head>
+  <body>
+    <main class="viewer-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">PDF.js Viewer</p>
+          <h1>PDF 内容查看器</h1>
+        </div>
+        <label class="file-button">
+          打开 PDF
+          <input id="fileInput" type="file" accept="application/pdf,.pdf" />
+        </label>
+      </header>
+
+      <section class="notice">
+        这个页面用于“看内容、翻页、备注和书签”。PDF.js 负责页面渲染，pdf-lib 用于把可见备注和高亮导出为新 PDF。
+      </section>
+
+      <section class="toolbar">
+        <button id="prevPage" type="button">上一页</button>
+        <div class="page-jump">
+          <input id="pageInput" type="number" min="1" value="1" />
+          <span>/ <strong id="pageCount">0</strong> 页</span>
+        </div>
+        <button id="nextPage" type="button">下一页</button>
+        <span class="divider"></span>
+        <button id="zoomOut" type="button">缩小</button>
+        <span id="zoomLabel">100%</span>
+        <button id="zoomIn" type="button">放大</button>
+        <button id="fitWidth" type="button">适合宽度</button>
+        <button id="readerFocus" type="button">大屏阅读</button>
+        <select id="viewMode" class="tool-select">
+          <option value="single">单页</option>
+          <option value="double">双页</option>
+          <option value="continuous">连续滚动</option>
+        </select>
+        <span class="divider"></span>
+        <button id="undoBtn" type="button">撤销</button>
+        <button id="redoBtn" type="button">重做</button>
+        <span class="divider"></span>
+        <button id="addBookmark" type="button">添加书签</button>
+        <select id="toolSelect" class="tool-select">
+          <option value="pan">浏览</option>
+          <option value="note">添加备注</option>
+          <option value="highlight">框选高亮</option>
+          <option value="textbox">添加文本框</option>
+          <option value="signature">放置签名</option>
+        </select>
+        <label class="import-button">
+          选择签名
+          <input id="signatureInput" type="file" accept="image/*" />
+        </label>
+        <button id="toggleText" type="button">显示文本</button>
+        <button id="exportData" type="button">导出批注</button>
+        <label class="import-button">
+          导入批注
+          <input id="importData" type="file" accept="application/json,.json" />
+        </label>
+        <button id="exportPdf" type="button">导出 PDF</button>
+      </section>
+
+      <section id="status" class="status">请选择一个 PDF 文件。</section>
+
+      <section class="content-grid">
+        <aside class="nav-panel">
+          <section class="editor-card">
+            <div class="panel-title">
+              <h2>搜索</h2>
+              <button id="clearSearch" type="button">清空</button>
+            </div>
+            <div class="search-row">
+              <input id="searchInput" type="search" placeholder="搜索 PDF 文本" />
+              <button id="searchBtn" type="button">搜索</button>
+            </div>
+            <div id="searchResults" class="item-list compact-list"></div>
+          </section>
+
+          <section class="editor-card">
+            <h2>全文目录</h2>
+            <div id="outlineList" class="item-list compact-list"></div>
+          </section>
+
+          <section class="editor-card">
+            <h2>缩略图</h2>
+            <div id="thumbnailList" class="thumbnail-list"></div>
+          </section>
+        </aside>
+
+        <article class="canvas-panel">
+          <div id="dropZone" class="drop-zone">
+            <div id="pageStage" class="page-stage">
+              <canvas id="pdfCanvas"></canvas>
+              <div id="annotationLayer" class="annotation-layer"></div>
+            </div>
+            <div id="secondPageStage" class="page-stage second-page-stage">
+              <canvas id="secondPdfCanvas"></canvas>
+            </div>
+            <div id="continuousPages" class="continuous-pages"></div>
+            <div id="emptyState" class="empty-state">
+              <strong>拖拽 PDF 到这里</strong>
+              <span>或点击右上角“打开 PDF”选择文件</span>
+            </div>
+          </div>
+        </article>
+
+        <aside id="textPanel" class="text-panel is-hidden">
+          <div class="panel-title">
+            <h2>当前页文本</h2>
+            <button id="copyText" type="button">复制</button>
+          </div>
+          <textarea id="pageText" readonly placeholder="当前页提取文本会显示在这里"></textarea>
+        </aside>
+
+        <aside class="edit-panel">
+          <section class="editor-card">
+            <h2>备注</h2>
+            <textarea id="noteInput" placeholder="先输入备注内容，再选择“添加备注”工具并点击 PDF 页面"></textarea>
+            <button id="quickNote" type="button">在页面中心添加备注</button>
+            <div id="notesList" class="item-list"></div>
+          </section>
+
+          <section class="editor-card">
+            <h2>文本框</h2>
+            <textarea id="textBoxInput" placeholder="输入文本框内容，再选择“添加文本框”工具并点击页面"></textarea>
+            <button id="quickTextBox" type="button">在页面中心添加文本框</button>
+          </section>
+
+          <section class="editor-card">
+            <h2>书签</h2>
+            <input id="bookmarkTitle" type="text" placeholder="书签标题，留空则使用当前页" />
+            <div id="bookmarksList" class="item-list"></div>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="./viewer.js"></script>
+  </body>
+</html>

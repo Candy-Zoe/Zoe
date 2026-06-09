@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SimplePDFParser 测试页</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow">JavaScript PDF 解析库</p>
+        <h1>SimplePDFParser 测试工具</h1>
+        <p class="hero-text">
+          选择或拖入 PDF 文件，直接在浏览器中解析基础结构、元数据、页面数量、对象流和文本内容。
+        </p>
+      </section>
+
+      <section class="upload-card" id="dropZone">
+        <input id="fileInput" type="file" accept="application/pdf,.pdf" />
+        <div class="upload-content">
+          <span class="upload-icon">PDF</span>
+          <h2>拖拽 PDF 到这里</h2>
+          <p>或点击选择文件。解析过程在本地浏览器中完成，不会上传文件。</p>
+          <button id="pickButton" type="button">选择 PDF</button>
+        </div>
+      </section>
+
+      <section class="status" id="status">等待选择 PDF 文件。</section>
+
+      <section class="grid">
+        <article class="panel">
+          <h2>文件概览</h2>
+          <dl id="summary" class="summary-list"></dl>
+        </article>
+
+        <article class="panel">
+          <h2>元数据</h2>
+          <dl id="metadata" class="summary-list"></dl>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>警告与提示</h2>
+        <ul id="warnings" class="warnings"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>提取文本</h2>
+        <textarea id="textOutput" readonly placeholder="解析后会显示文本内容"></textarea>
+      </section>
+
+      <section class="panel">
+        <h2>流对象</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>对象 ID</th>
+                <th>过滤器</th>
+                <th>解码后长度</th>
+              </tr>
+            </thead>
+            <tbody id="streams"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>原始解析结果</h2>
+        <pre id="jsonOutput">{}</pre>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
+
