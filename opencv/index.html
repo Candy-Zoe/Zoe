@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231a1a2e'/><text x='16' y='22' text-anchor='middle' fill='%2300d4ff' font-family='Arial' font-weight='bold' font-size='14'>CV</text></svg>" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenCV 调试平台</title>
+  <style>
+    :root { --bg-primary: #0f0f1a; --bg-secondary: #1a1a2e; --bg-tertiary: #252542; --text-primary: #fff; --text-secondary: #a0a0b0; --accent: #00d4ff; --border: #2d2d4a; --success: #00ff88; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: 'SF Mono', 'Consolas', monospace; background: var(--bg-primary); color: var(--text-primary); }
+    #app { display: flex; height: 100vh; }
+    .nav { width: 260px; background: var(--bg-secondary); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .nav-header { padding: 20px; border-bottom: 1px solid var(--border); }
+    .nav-logo { display: flex; align-items: center; gap: 12px; }
+    .nav-logo h1 { font-size: 16px; background: linear-gradient(135deg, var(--accent), var(--success)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .nav-menu { flex: 1; overflow-y: auto; padding: 12px 0; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 20px; cursor: pointer; color: var(--text-secondary); border-left: 3px solid transparent; transition: all 0.2s; font-size: 13px; }
+    .nav-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+    .nav-item.active { background: var(--bg-tertiary); color: var(--accent); border-left-color: var(--accent); }
+    .nav-item svg { width: 18px; height: 18px; stroke: currentColor; fill: none; flex-shrink: 0; }
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .toolbar { display: flex; gap: 12px; padding: 12px 20px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); align-items: center; }
+    .content { flex: 1; padding: 20px; overflow-y: auto; }
+    .page-title { font-size: 20px; margin-bottom: 4px; font-weight: 600; }
+    .page-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; }
+    .card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    .card-title { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .upload-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 24px; text-align: center; cursor: pointer; transition: all 0.3s; margin-bottom: 12px; }
+    .upload-zone:hover { border-color: var(--accent); background: rgba(0, 212, 255, 0.05); }
+    .upload-zone svg { width: 32px; height: 32px; stroke: var(--text-secondary); margin-bottom: 8px; }
+    .upload-zone p { color: var(--text-secondary); font-size: 13px; }
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+    .btn-primary { background: var(--accent); color: var(--bg-primary); }
+    .btn-primary:hover { background: #00b8e6; }
+    .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--border); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .slider-group { margin-bottom: 12px; }
+    .slider-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .slider-label { font-size: 12px; color: var(--text-secondary); }
+    .slider-value { font-size: 12px; color: var(--accent); font-weight: 600; }
+    input[type="range"] { width: 100%; height: 4px; background: var(--bg-tertiary); border-radius: 2px; outline: none; }
+    input[type="range"]::-webkit-slider-thumb { width: 14px; height: 14px; background: var(--accent); border-radius: 50%; -webkit-appearance: none; cursor: pointer; }
+    input[type="color"] { width: 36px; height: 36px; border: none; border-radius: 6px; cursor: pointer; background: transparent; }
+    input[type="text"], input[type="number"] { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: var(--text-primary); font-size: 13px; }
+    select { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: var(--text-primary); font-size: 13px; cursor: pointer; }
+    .compare-view { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .compare-item { display: flex; flex-direction: column; }
+    .compare-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; }
+    .canvas-wrapper { background: var(--bg-tertiary); border-radius: 8px; overflow: hidden; padding: 12px; display: flex; justify-content: center; min-height: 150px; align-items: center; }
+    .canvas-wrapper canvas, .canvas-wrapper img { max-width: 100%; max-height: 300px; }
+    .canvas-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .loading-overlay { position: fixed; inset: 0; background: var(--bg-primary); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+    .loading-spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { color: var(--text-secondary); font-size: 14px; }
+    .loading-progress-bar { width: 200px; height: 3px; background: var(--bg-tertiary); border-radius: 2px; margin-top: 12px; overflow: hidden; }
+    .loading-progress-fill { height: 100%; background: var(--accent); transition: width 0.1s; }
+    .hidden-input { display: none; }
+    .info-box { background: var(--bg-tertiary); border-radius: 8px; padding: 10px; margin-top: 10px; }
+    .info-box p { color: var(--text-secondary); font-size: 12px; margin-bottom: 4px; }
+    .image-preview { position: relative; display: inline-block; }
+    .image-preview img { max-width: 100%; border-radius: 6px; }
+    .image-info { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.7); padding: 4px 8px; border-radius: 4px; font-size: 11px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+    .tab { padding: 6px 12px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; cursor: pointer; color: var(--text-secondary); }
+    .tab.active { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
+    .param-row { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .param-label { font-size: 12px; color: var(--text-secondary); min-width: 80px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    // ========== 工具函数 ==========
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => document.querySelectorAll(sel);
+
+    const createSlider = (label, min, max, value, step = 1, onChange) => {
+      const group = document.createElement('div');
+      group.className = 'slider-group';
+      group.innerHTML = `<div class="slider-header"><span class="slider-label">${label}</span><span class="slider-value">${value}</span></div><input type="range" min="${min}" max="${max}" value="${value}" step="${step}">`;
+      const input = group.querySelector('input'), display = group.querySelector('.slider-value');
+      input.addEventListener('input', () => { display.textContent = input.value; onChange(parseFloat(input.value)); });
+      return group;
+    };
+
+    const createButtonGroup = (buttons) => {
+      const group = document.createElement('div');
+      group.className = 'btn-group';
+      buttons.forEach(btn => {
+        const b = document.createElement('button');
+        b.className = `btn btn-secondary${btn.active ? ' active' : ''}`;
+        b.textContent = btn.label;
+        b.addEventListener('click', () => { $$('.btn-group button').forEach(x => x.classList.remove('active')); b.classList.add('active'); btn.onClick(); });
+        group.appendChild(b);
+      });
+      return group;
+    };
+
+    const uploadImage = (containerId, onLoaded) => {
+      const container = $(`#${containerId}`);
+      if (!container) return;
+      container.innerHTML = `<div class="upload-zone" id="${containerId}Zone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><p>点击或拖拽上传图片</p><input type="file" id="${containerId}Input" class="hidden-input" accept="image/*"></div>`;
+      const zone = $(`#${containerId}Zone`), input = $(`#${containerId}Input`);
+      zone.addEventListener('click', () => input.click());
+      zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.borderColor = 'var(--accent)'; });
+      zone.addEventListener('dragleave', () => zone.style.borderColor = '');
+      zone.addEventListener('drop', (e) => { e.preventDefault(); zone.style.borderColor = ''; loadFile(e.dataTransfer.files[0]); });
+      input.addEventListener('change', () => { if (input.files[0]) loadFile(input.files[0]); });
+      const loadFile = (file) => {
+        if (!file?.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width; canvas.height = img.height;
+            canvas.getContext('2d').drawImage(img, 0, 0);
+            zone.innerHTML = `<div class="image-preview"><img src="${canvas.toDataURL()}"><div class="image-info">${img.width} x ${img.height}</div></div>`;
+            onLoaded(canvas, img);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      };
+    };
+
+    const showResult = (containerId, canvas) => {
+      const container = $(`#${containerId}`);
+      if (container) { container.innerHTML = ''; canvas.style.maxWidth = '100%'; container.appendChild(canvas); }
+      window.currentResult = canvas;
+    };
+
+    const downloadResult = () => { if (window.currentResult) { const a = document.createElement('a'); a.download = 'result.png'; a.href = window.currentResult.toDataURL(); a.click(); } };
+
+    // ========== 全局状态 ==========
+    let srcCanvas = null, srcImage = null;
+
+    // ========== 导航配置 ==========
+    const navItems = [
+      { id: 'home', label: '首页', icon: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>' },
+      { id: 'grayscale', label: '灰度处理', icon: '<rect x="3" y="3" width="18" height="18" rx="2"/>' },
+      { id: 'brightness', label: '亮度对比度', icon: '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>' },
+      { id: 'blur', label: '模糊滤镜', icon: '<circle cx="12" cy="12" r="10" stroke-dasharray="2 2"/>' },
+      { id: 'edge', label: '边缘检测', icon: '<polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>' },
+      { id: 'morphology', label: '形态学', icon: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' },
+      { id: 'colorspace', label: '颜色空间', icon: '<circle cx="12" cy="12" r="10"/>' },
+      { id: 'threshold', label: '阈值处理', icon: '<line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/>' },
+      { id: 'transform', label: '几何变换', icon: '<polyline points="23,4 23,10 17,10"/><polyline points="1,20 1,14 7,14"/>' },
+      { id: 'contour', label: '轮廓检测', icon: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>' },
+      { id: 'histogram', label: '直方图', icon: '<rect x="3" y="14" width="4" height="6"/><rect x="10" y="10" width="4" height="10"/><rect x="17" y="6" width="4" height="14"/>' },
+      { id: 'houghlines', label: '霍夫变换', icon: '<line x1="4" y1="20" x2="20" y2="4"/><circle cx="12" cy="12" r="3"/>' },
+      { id: 'template', label: '模板匹配', icon: '<rect x="2" y="2" width="8" height="8"/><rect x="14" y="14" width="8" height="8"/>' },
+      { id: 'harris', label: '角点检测', icon: '<polygon points="12,2 22,22 2,22"/>' },
+      { id: 'blend', label: '图像融合', icon: '<circle cx="9" cy="9" r="6"/><circle cx="15" cy="15" r="6"/>' },
+      { id: 'denoise', label: '去噪处理', icon: '<path d="M3 12a9 9 0 1 0 9-9"/><path d="M12 8v4l2 2"/>' },
+      { id: 'gradient', label: '梯度运算', icon: '<path d="M12 2L12 22"/><path d="M2 12L22 12"/>' },
+      { id: 'skin', label: '肤色检测', icon: '<circle cx="12" cy="8" r="5"/><path d="M12 13v8"/>' },
+      { id: 'perspective', label: '透视变换', icon: '<path d="M2 22 L22 22 L22 2 L2 2 Z"/><path d="M6 18 L18 6"/>' },
+      { id: 'morph2', label: '顶帽底帽', icon: '<rect x="3" y="8" width="18" height="8"/><rect x="8" y="3" width="8" height="18"/>' },
+      { id: 'filter', label: '图像滤镜', icon: '<polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>' },
+      { id: 'watercolor', label: '水彩效果', icon: '<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.78-.09 2.63-.25"/>' },
+      { id: 'cartoon', label: '漫画效果', icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>' },
+      { id: 'emboss', label: '浮雕效果', icon: '<polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5"/>' },
+      { id: 'vintage', label: '复古滤镜', icon: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>' },
+      { id: 'inpaint', label: '图像修复', icon: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>' },
+      { id: 'segmentation', label: '前景分割', icon: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/>' },
+      { id: 'chromakey', label: '抠图换背景', icon: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/>' },
+      { id: 'text', label: '添加文字', icon: '<polyline points="4,7 4,4 20,4 20,7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>' },
+      { id: 'resize', label: '调整尺寸', icon: '<polyline points="15,3 21,3 21,9"/><polyline points="9,21 3,21 3,15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>' },
+      { id: 'crop', label: '裁剪工具', icon: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>' },
+      { id: 'rotate', label: '旋转翻转', icon: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>' },
+      { id: 'sharpen', label: '锐化处理', icon: '<polygon points="12,2 19,21 5,21"/>' },
+      { id: 'noise', label: '噪声添加', icon: '<circle cx="12" cy="12" r="3"/>' },
+      { id: 'clahe', label: '自适应均衡', icon: '<rect x="3" y="14" width="4" height="6"/><rect x="10" y="10" width="4" height="10"/><rect x="17" y="6" width="4" height="14"/>' }
+    ];
+
+    // ========== 页面实现 ==========
+    const pages = {
+      home: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">OpenCV 在线调试平台</h2>
+            <p class="page-desc">纯前端实现的 OpenCV.js 图像处理工具，支持 35+ 种图像处理功能</p>
+            <div class="grid-3">
+              <div class="card"><div class="card-title">快速开始</div><p style="color: var(--text-secondary); font-size: 12px; line-height: 1.6;">从左侧导航选择功能模块，上传图片后即可实时预览处理效果</p></div>
+              <div class="card"><div class="card-title">处理类型</div><ul style="color: var(--text-secondary); font-size: 12px; padding-left: 16px; line-height: 1.8;"><li>图像增强与滤镜</li><li>边缘与轮廓检测</li><li>几何变换</li><li>颜色空间处理</li></ul></div>
+              <div class="card"><div class="card-title">技术特点</div><ul style="color: var(--text-secondary); font-size: 12px; padding-left: 16px; line-height: 1.8;"><li>纯前端处理保护隐私</li><li>图片不上传服务器</li><li>实时预览</li><li>支持下载结果</li></ul></div>
+            </div>
+            <div class="card"><div class="card-title">上传图片</div><div id="homeUpload"></div><div id="homePreview" class="canvas-wrapper" style="display:none;"><div class="compare-label">原图</div></div><div class="btn-group"><button class="btn btn-primary" id="processBtn">去灰度处理</button></div></div>
+          `;
+          uploadImage('homeUpload', (canvas, img) => {
+            srcCanvas = canvas; srcImage = img;
+            const preview = $('#homePreview');
+            preview.style.display = 'block';
+            const origC = document.createElement('canvas'); origC.width = img.width; origC.height = img.height; origC.getContext('2d').drawImage(img, 0, 0);
+            preview.innerHTML = '<div class="compare-label">原图</div>'; preview.appendChild(origC);
+          });
+          $('#processBtn').addEventListener('click', () => switchPage('grayscale'));
+        }
+      },
+      grayscale: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">灰度处理</h2><p class="page-desc">彩色图转灰度图</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div class="compare-view"><div class="compare-item"><div class="compare-label">原图</div><div id="orig" class="canvas-wrapper"></div></div><div class="compare-item"><div class="compare-label">灰度图</div><div id="result" class="canvas-wrapper"></div></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => {
+            srcCanvas = canvas; srcImage = img;
+            const origC = document.createElement('canvas'); origC.width = img.width; origC.height = img.height; origC.getContext('2d').drawImage(img, 0, 0);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+          });
+          $$('#sliders')[0].appendChild(createSlider('对比度', 0.5, 2, 1, 0.1, v => window.p_contrast = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), gray = new cv.Mat(), dst = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+            gray.convertTo(dst, -1, window.p_contrast || 1, 0);
+            const origC = document.createElement('canvas'); origC.width = src.cols; origC.height = src.rows; cv.imshow(origC, src);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); gray.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      brightness: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">亮度与对比度</h2><p class="page-desc">调整图像的亮度和对比度</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数调整</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div class="compare-view"><div class="compare-item"><div class="compare-label">原图</div><div id="orig" class="canvas-wrapper"></div></div><div class="compare-item"><div class="compare-label">效果图</div><div id="result" class="canvas-wrapper"></div></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => {
+            srcCanvas = canvas; srcImage = img;
+            const origC = document.createElement('canvas'); origC.width = img.width; origC.height = img.height; origC.getContext('2d').drawImage(img, 0, 0);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+          });
+          $$('#sliders')[0].appendChild(createSlider('亮度', -100, 100, 0, 1, v => window.p_brightness = v));
+          $$('#sliders')[0].appendChild(createSlider('对比度', 0.1, 3, 1, 0.1, v => window.p_contrast = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat();
+            src.convertTo(dst, -1, window.p_contrast || 1, window.p_brightness || 0);
+            const origC = document.createElement('canvas'); origC.width = src.cols; origC.height = src.rows; cv.imshow(origC, src);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      blur: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">模糊滤镜</h2><p class="page-desc">高斯/均值/中值/双边模糊</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="types" class="tabs"></div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let type = 'gaussian', ksize = 15, sigma = 5;
+          const update = () => {
+            $$('#sliders')[0].innerHTML = '';
+            $$('#sliders')[0].appendChild(createSlider('核大小', 3, 51, ksize, 2, v => ksize = v));
+            if (type === 'gaussian' || type === 'bilateral') $$('#sliders')[0].appendChild(createSlider('Sigma', 0.1, 30, sigma, 0.5, v => sigma = v));
+          };
+          $$('#types')[0].innerHTML = ['gaussian', 'blur', 'median', 'bilateral'].map(t => `<button class="tab${t === 'gaussian' ? ' active' : ''}" data-type="${t}">${t === 'gaussian' ? '高斯' : t === 'blur' ? '均值' : t === 'median' ? '中值' : '双边'}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); type = tab.dataset.type; update(); }));
+          update();
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat(), ks = new cv.Size(ksize, ksize);
+            if (type === 'gaussian') cv.GaussianBlur(src, dst, ks, sigma);
+            else if (type === 'blur') cv.blur(src, dst, ks);
+            else if (type === 'median') cv.medianBlur(src, dst, ksize);
+            else cv.bilateralFilter(src, dst, ksize, sigma, sigma);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      edge: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">边缘检测</h2><p class="page-desc">Canny/Sobel/Laplacian</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="types" class="tabs"></div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let type = 'canny', t1 = 100, t2 = 200;
+          const update = () => {
+            $$('#sliders')[0].innerHTML = '';
+            if (type === 'canny') { $$('#sliders')[0].appendChild(createSlider('阈值1', 0, 300, t1, 1, v => t1 = v)); $$('#sliders')[0].appendChild(createSlider('阈值2', 0, 300, t2, 1, v => t2 = v)); }
+            else $$('#sliders')[0].appendChild(createSlider('阈值', 0, 300, 100, 1, v => t1 = v));
+          };
+          $$('#types')[0].innerHTML = ['canny', 'sobel', 'laplacian'].map(t => `<button class="tab${t === 'canny' ? ' active' : ''}" data-type="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); type = tab.dataset.type; update(); }));
+          update();
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), gray = new cv.Mat(), dst = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+            if (type === 'canny') cv.Canny(gray, dst, t1, t2);
+            else if (type === 'sobel') { const sx = new cv.Mat(), sy = new cv.Mat(); cv.Sobel(gray, sx, cv.CV_16S, 1, 0, 3); cv.Sobel(gray, sy, cv.CV_16S, 0, 1, 3); cv.convertScaleAbs(sx, sx); cv.convertScaleAbs(sy, sy); cv.addWeighted(sx, 0.5, sy, 0.5, 0, dst); sx.delete(); sy.delete(); }
+            else { const lap = new cv.Mat(); cv.Laplacian(gray, lap, cv.CV_16S, 3); cv.convertScaleAbs(lap, dst); lap.delete(); }
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); gray.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      morphology: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">形态学运算</h2><p class="page-desc">腐蚀/膨胀/开运算/闭运算</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="types" class="tabs"></div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let op = 'erode', ksize = 5, iter = 1;
+          $$('#types')[0].innerHTML = ['erode', 'dilate', 'open', 'close'].map(t => `<button class="tab${t === 'erode' ? ' active' : ''}" data-op="${t}">${t === 'erode' ? '腐蚀' : t === 'dilate' ? '膨胀' : t === 'open' ? '开运算' : '闭运算'}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); op = tab.dataset.op; }));
+          $$('#sliders')[0].appendChild(createSlider('核大小', 3, 21, ksize, 2, v => ksize = v));
+          $$('#sliders')[0].appendChild(createSlider('迭代', 1, 10, iter, 1, v => iter = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat(), k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(ksize, ksize));
+            if (op === 'erode') cv.erode(src, dst, k, { iterations: iter });
+            else if (op === 'dilate') cv.dilate(src, dst, k, { iterations: iter });
+            else if (op === 'open') cv.morphologyEx(src, dst, cv.MORPH_OPEN, k, { iterations: iter });
+            else cv.morphologyEx(src, dst, cv.MORPH_CLOSE, k, { iterations: iter });
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); k.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      colorspace: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">颜色空间转换</h2><p class="page-desc">RGB/HSV/LAB/YCrCb/GRAY</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="types" class="tabs"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let space = 'hsv';
+          $$('#types')[0].innerHTML = ['hsv', 'lab', 'ycrcb', 'gray'].map(s => `<button class="tab${s === 'hsv' ? ' active' : ''}" data-space="${s}">${s.toUpperCase()}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); space = tab.dataset.space; }));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat();
+            if (space === 'hsv') cv.cvtColor(src, dst, cv.COLOR_RGB2HSV);
+            else if (space === 'lab') cv.cvtColor(src, dst, cv.COLOR_RGB2Lab);
+            else if (space === 'ycrcb') cv.cvtColor(src, dst, cv.COLOR_RGB2YCrCb);
+            else cv.cvtColor(src, dst, cv.COLOR_RGB2GRAY);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      threshold: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">阈值处理</h2><p class="page-desc">二值化/反二值/截断/OTSU</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="types" class="tabs"></div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div class="compare-view"><div class="compare-item"><div class="compare-label">原图</div><div id="orig" class="canvas-wrapper"></div></div><div class="compare-item"><div class="compare-label">效果图</div><div id="result" class="canvas-wrapper"></div></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => {
+            srcCanvas = canvas; srcImage = img;
+            const origC = document.createElement('canvas'); origC.width = img.width; origC.height = img.height; origC.getContext('2d').drawImage(img, 0, 0);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+          });
+          let type = 'binary', thresh = 127, maxVal = 255;
+          const update = () => { $$('#sliders')[0].innerHTML = ''; $$('#sliders')[0].appendChild(createSlider('阈值', 0, 255, thresh, 1, v => thresh = v)); $$('#sliders')[0].appendChild(createSlider('最大值', 0, 255, maxVal, 1, v => maxVal = v)); };
+          $$('#types')[0].innerHTML = ['binary', 'binary_inv', 'trunc', 'otsu'].map(t => `<button class="tab${t === 'binary' ? ' active' : ''}" data-type="${t}">${t === 'binary' ? '二值化' : t === 'binary_inv' ? '反二值' : t === 'trunc' ? '截断' : 'OTSU'}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); type = tab.dataset.type; update(); }));
+          update();
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), gray = new cv.Mat(), dst = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+            let tt; if (type === 'binary') tt = cv.THRESH_BINARY; else if (type === 'binary_inv') tt = cv.THRESH_BINARY_INV; else if (type === 'trunc') tt = cv.THRESH_TRUNC; else tt = cv.THRESH_OTSU;
+            cv.threshold(gray, dst, thresh, maxVal, tt);
+            const origC = document.createElement('canvas'); origC.width = src.cols; origC.height = src.rows; cv.imshow(origC, gray);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); gray.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      transform: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">几何变换</h2><p class="page-desc">缩放/旋转/平移</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let fx = 1.5, fy = 1.5, tx = 50, ty = 50;
+          $$('#sliders')[0].appendChild(createSlider('X缩放', 0.1, 3, fx, 0.1, v => fx = v));
+          $$('#sliders')[0].appendChild(createSlider('Y缩放', 0.1, 3, fy, 0.1, v => fy = v));
+          $$('#sliders')[0].appendChild(createSlider('X平移', -200, 200, tx, 10, v => tx = v));
+          $$('#sliders')[0].appendChild(createSlider('Y平移', -200, 200, ty, 10, v => ty = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat();
+            const M = new cv.Mat(2, 3, cv.CV_64FC1);
+            M.data64F[0] = fx; M.data64F[1] = 0; M.data64F[2] = tx;
+            M.data64F[3] = 0; M.data64F[4] = fy; M.data64F[5] = ty;
+            cv.warpAffine(src, dst, M, new cv.Size(src.cols, src.rows));
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete(); M.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      resize: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">调整尺寸</h2><p class="page-desc">按比例或指定尺寸调整图像大小</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div class="param-row"><span class="param-label">宽度</span><input type="number" id="width" value="400" min="1" style="width: 100px;"></div><div class="param-row"><span class="param-label">高度</span><input type="number" id="height" value="300" min="1" style="width: 100px;"></div><div class="param-row"><label style="font-size: 12px; color: var(--text-secondary);"><input type="checkbox" id="keepRatio" checked> 保持比例</label></div><div class="btn-group"><button class="btn btn-primary" id="apply">调整</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; $('#width').value = img.width; $('#height').value = img.height; });
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), w = parseInt($('#width').value), h = parseInt($('#height').value);
+            const dst = new cv.Mat();
+            if ($('#keepRatio').checked) cv.resize(src, dst, new cv.Size(w, h), 0, 0, cv.INTER_LINEAR);
+            else cv.resize(src, dst, new cv.Size(w, h), 0, 0, cv.INTER_LINEAR);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      rotate: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">旋转与翻转</h2><p class="page-desc">图像旋转和镜像翻转</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="types" class="tabs"></div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let angle = 45, mode = 'rotate';
+          $$('#types')[0].innerHTML = ['rotate', 'flip_h', 'flip_v', 'flip_hv'].map(m => `<button class="tab${m === 'rotate' ? ' active' : ''}" data-mode="${m}">${m === 'rotate' ? '旋转' : m === 'flip_h' ? '水平翻转' : m === 'flip_v' ? '垂直翻转' : '双向翻转'}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); mode = tab.dataset.mode; $$('#sliders')[0].style.display = mode === 'rotate' ? 'block' : 'none'; }));
+          $$('#sliders')[0].appendChild(createSlider('角度', -180, 180, angle, 5, v => angle = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat();
+            if (mode === 'rotate') { const center = new cv.Point(src.cols / 2, src.rows / 2); const mat = cv.getRotationMatrix2D(center, angle, 1); cv.warpAffine(src, dst, mat, new cv.Size(src.cols, src.rows)); mat.delete(); }
+            else { const code = mode === 'flip_h' ? 1 : mode === 'flip_v' ? 0 : -1; cv.flip(src, dst, code); }
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      crop: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">裁剪工具</h2><p class="page-desc">裁剪图像的指定区域</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">裁剪区域</div><div class="param-row"><span class="param-label">X1</span><input type="number" id="x1" value="0" min="0" style="width: 80px;"><span class="param-label">Y1</span><input type="number" id="y1" value="0" min="0" style="width: 80px;"></div><div class="param-row"><span class="param-label">X2</span><input type="number" id="x2" value="100" min="1" style="width: 80px;"><span class="param-label">Y2</span><input type="number" id="y2" value="100" min="1" style="width: 80px;"></div><div class="btn-group"><button class="btn btn-primary" id="apply">裁剪</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => {
+            srcCanvas = canvas; srcImage = img;
+            $('#x1').max = img.width; $('#y1').max = img.height; $('#x2').max = img.width; $('#y2').max = img.height;
+            $('#x2').value = img.width; $('#y2').value = img.height;
+          });
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas);
+            const x1 = Math.max(0, parseInt($('#x1').value)), y1 = Math.max(0, parseInt($('#y1').value));
+            const x2 = Math.min(src.cols, parseInt($('#x2').value)), y2 = Math.min(src.rows, parseInt($('#y2').value));
+            const rect = new cv.Rect(x1, y1, x2 - x1, y2 - y1);
+            const dst = src.roi(rect);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      contour: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">轮廓检测</h2><p class="page-desc">检测并绘制图像轮廓</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">检测</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let minArea = 100;
+          $$('#sliders')[0].appendChild(createSlider('最小面积', 10, 1000, minArea, 10, v => minArea = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), gray = new cv.Mat(), dst = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY); cv.cvtColor(src, dst, cv.COLOR_RGBA2RGB);
+            cv.threshold(gray, gray, 127, 255, cv.THRESH_BINARY);
+            const contours = new cv.MatVector(), hierarchy = new cv.Mat();
+            cv.findContours(gray, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+            for (let i = 0; i < contours.size(); i++) { const c = contours.get(i); if (cv.contourArea(c) >= minArea) cv.drawContours(dst, contours, i, new cv.Scalar(0, 255, 0, 255), 2); c.delete(); }
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); gray.delete(); dst.delete(); contours.delete(); hierarchy.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      histogram: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">直方图</h2><p class="page-desc">灰度分布直方图</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div class="btn-group"><button class="btn btn-primary" id="apply">计算</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="canvas-row"><div class="card"><div class="card-title">原图</div><div id="orig" class="canvas-wrapper"></div></div><div class="card"><div class="card-title">直方图</div><div id="histCanvas" class="canvas-wrapper"></div></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => {
+            srcCanvas = canvas; srcImage = img;
+            const origC = document.createElement('canvas'); origC.width = img.width; origC.height = img.height; origC.getContext('2d').drawImage(img, 0, 0);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+          });
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), gray = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+            const origC = document.createElement('canvas'); origC.width = src.cols; origC.height = src.rows; cv.imshow(origC, src);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+            const histC = document.createElement('canvas'); histC.width = 256; histC.height = 150;
+            const ctx = histC.getContext('2d'); ctx.fillStyle = '#252542'; ctx.fillRect(0, 0, 256, 150);
+            const hist = new cv.Mat(); cv.calcHist([gray], [0], new cv.Mat(), hist, [256], [0, 256]);
+            const max = cv.minMaxLoc(hist).maxVal;
+            ctx.fillStyle = '#00d4ff';
+            for (let i = 0; i < 256; i++) { const h = (hist.data32F[i] / max) * 130; ctx.fillRect(i, 150 - h, 1, h); }
+            $('#histCanvas').innerHTML = ''; $('#histCanvas').appendChild(histC);
+            window.currentResult = histC;
+            src.delete(); gray.delete(); hist.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      houghlines: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">霍夫变换</h2><p class="page-desc">检测图像中的直线</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">检测</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let threshold = 100, minLen = 50;
+          $$('#sliders')[0].appendChild(createSlider('阈值', 50, 300, threshold, 1, v => threshold = v));
+          $$('#sliders')[0].appendChild(createSlider('最小线长', 10, 200, minLen, 5, v => minLen = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), gray = new cv.Mat(), edges = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY); cv.Canny(gray, edges, 50, 150, 3);
+            const lines = new cv.Mat();
+            cv.HoughLinesP(edges, lines, 1, Math.PI / 180, threshold, minLen, 10);
+            cv.cvtColor(edges, src, cv.COLOR_GRAY2RGB);
+            for (let i = 0; i < lines.rows; i++) { const [x1, y1, x2, y2] = lines.data32S.slice(i * 4, i * 4 + 4); cv.line(src, new cv.Point(x1, y1), new cv.Point(x2, y2), new cv.Scalar(0, 255, 0, 255), 2); }
+            const resultC = document.createElement('canvas'); resultC.width = src.cols; resultC.height = src.rows; cv.imshow(resultC, src);
+            showResult('result', resultC);
+            src.delete(); gray.delete(); edges.delete(); lines.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      template: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">模板匹配</h2><p class="page-desc">在图像中查找模板位置</p>
+            <div class="card"><div class="card-title">上传原图</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">上传模板</div><div id="uploadTpl"></div></div>
+            <div class="btn-group"><button class="btn btn-primary" id="matchBtn">开始匹配</button><button class="btn btn-secondary" id="download">下载</button></div>
+            <div class="card" style="margin-top: 16px;"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          let tplCanvas = null;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          uploadImage('uploadTpl', (canvas) => { tplCanvas = canvas; });
+          $('#matchBtn').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传原图'); return; }
+            if (!tplCanvas) { alert('请先上传模板'); return; }
+            const src = cv.imread(srcCanvas), tmpl = cv.imread(tplCanvas), result = new cv.Mat();
+            cv.matchTemplate(src, tmpl, result, cv.TM_CCOEFF_NORMED);
+            const { maxVal, maxLoc } = cv.minMaxLoc(result);
+            const dst = src.clone();
+            cv.rectangle(dst, maxLoc, new cv.Point(maxLoc.x + tmpl.cols, maxLoc.y + tmpl.rows), new cv.Scalar(0, 255, 0, 255), 2);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); tmpl.delete(); result.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      harris: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">Harris角点检测</h2><p class="page-desc">检测图像中的角点特征</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">检测</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let blockSize = 2, k = 0.04, threshold = 0.01;
+          $$('#sliders')[0].appendChild(createSlider('区块大小', 2, 10, blockSize, 1, v => blockSize = v));
+          $$('#sliders')[0].appendChild(createSlider('k参数', 0.01, 0.2, k, 0.01, v => k = v));
+          $$('#sliders')[0].appendChild(createSlider('阈值', 0.001, 0.1, threshold, 0.001, v => threshold = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), gray = new cv.Mat(), dst = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY); cv.cvtColor(gray, src, cv.COLOR_GRAY2RGB);
+            cv.cornerHarris(gray, dst, blockSize, 3, k, cv.BORDER_DEFAULT);
+            const maxVal = cv.minMaxLoc(dst).maxVal;
+            for (let y = 0; y < dst.rows; y++) { for (let x = 0; x < dst.cols; x++) { if (dst.floatAt(y, x) > maxVal * threshold) cv.circle(src, new cv.Point(x, y), 5, new cv.Scalar(255, 0, 0, 255), 2); } }
+            const resultC = document.createElement('canvas'); resultC.width = src.cols; resultC.height = src.rows; cv.imshow(resultC, src);
+            showResult('result', resultC);
+            src.delete(); gray.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      blend: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">图像融合</h2><p class="page-desc">两张图片混合</p>
+            <div class="card"><div class="card-title">上传图片1</div><div id="upload1"></div></div>
+            <div class="card"><div class="card-title">上传图片2</div><div id="upload2"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">融合</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          let canvas2 = null;
+          uploadImage('upload1', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          uploadImage('upload2', (canvas) => { canvas2 = canvas; });
+          let alpha = 0.5;
+          $$('#sliders')[0].appendChild(createSlider('混合比例', 0, 1, alpha, 0.1, v => alpha = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片1'); return; }
+            if (!canvas2) { alert('请先上传图片2'); return; }
+            const src1 = cv.imread(srcCanvas), src2 = cv.imread(canvas2), dst = new cv.Mat();
+            cv.addWeighted(src1, alpha, src2, 1 - alpha, 0, dst);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src1.delete(); src2.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      denoise: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">去噪处理</h2><p class="page-desc">非局部均值去噪</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">去噪</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div class="compare-view"><div class="compare-item"><div class="compare-label">原图</div><div id="orig" class="canvas-wrapper"></div></div><div class="compare-item"><div class="compare-label">去噪后</div><div id="result" class="canvas-wrapper"></div></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => {
+            srcCanvas = canvas; srcImage = img;
+            const origC = document.createElement('canvas'); origC.width = img.width; origC.height = img.height; origC.getContext('2d').drawImage(img, 0, 0);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+          });
+          let h = 10, template = 7, search = 21;
+          $$('#sliders')[0].appendChild(createSlider('滤波强度', 1, 20, h, 1, v => h = v));
+          $$('#sliders')[0].appendChild(createSlider('模板窗口', 5, 15, template, 1, v => template = v));
+          $$('#sliders')[0].appendChild(createSlider('搜索窗口', 11, 35, search, 1, v => search = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat();
+            cv.fastNlMeansDenoisingColored(src, dst, h, h, template, search);
+            const origC = document.createElement('canvas'); origC.width = src.cols; origC.height = src.rows; cv.imshow(origC, src);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      gradient: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">梯度运算</h2><p class="page-desc">Sobel/Scharr梯度</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="types" class="tabs"></div><div class="btn-group"><button class="btn btn-primary" id="apply">计算</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let type = 'sobel';
+          $$('#types')[0].innerHTML = ['sobel', 'scharr', 'laplacian'].map(t => `<button class="tab${t === 'sobel' ? ' active' : ''}" data-type="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); type = tab.dataset.type; }));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), gray = new cv.Mat(), dst = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+            if (type === 'sobel') { const gx = new cv.Mat(), gy = new cv.Mat(); cv.Sobel(gray, gx, cv.CV_16S, 1, 0, 3); cv.Sobel(gray, gy, cv.CV_16S, 0, 1, 3); cv.convertScaleAbs(gx, gx); cv.convertScaleAbs(gy, gy); cv.addWeighted(gx, 0.5, gy, 0.5, 0, dst); gx.delete(); gy.delete(); }
+            else if (type === 'scharr') { cv.Scharr(gray, dst, cv.CV_16S, 1, 0); cv.convertScaleAbs(dst, dst); }
+            else { const lap = new cv.Mat(); cv.Laplacian(gray, lap, cv.CV_16S, 3); cv.convertScaleAbs(lap, dst); lap.delete(); }
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); gray.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      skin: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">肤色检测</h2><p class="page-desc">基于YCrCb色彩空间</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div class="info-box"><p>Cr > 133 且 Cr < 173</p><p>Cb > 77 且 Cb < 127</p></div><div class="btn-group" style="margin-top: 12px;"><button class="btn btn-primary" id="apply">检测</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div class="compare-view"><div class="compare-item"><div class="compare-label">原图</div><div id="orig" class="canvas-wrapper"></div></div><div class="compare-item"><div class="compare-label">肤色区域</div><div id="result" class="canvas-wrapper"></div></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => {
+            srcCanvas = canvas; srcImage = img;
+            const origC = document.createElement('canvas'); origC.width = img.width; origC.height = img.height; origC.getContext('2d').drawImage(img, 0, 0);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+          });
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), ycrcb = new cv.Mat(), mask = new cv.Mat(), dst = new cv.Mat();
+            cv.cvtColor(src, ycrcb, cv.COLOR_RGB2YCrCb);
+            const cr = new cv.Mat(), cb = new cv.Mat();
+            cv.extractChannel(ycrcb, cr, 1); cv.extractChannel(ycrcb, cb, 2);
+            cv.inRange(cr, new cv.Scalar(133), new cv.Scalar(173), cr);
+            cv.inRange(cb, new cv.Scalar(77), new cv.Scalar(127), cb);
+            cv.bitwise_and(cr, cb, mask);
+            cv.cvtColor(src, dst, cv.COLOR_RGB2RGBA);
+            for (let y = 0; y < dst.rows; y++) { for (let x = 0; x < dst.cols; x++) { if (mask.ucharAt(y, x) === 0) { dst.ucharAt(y, x * 4) = 0; dst.ucharAt(y, x * 4 + 1) = 0; dst.ucharAt(y, x * 4 + 2) = 0; } } }
+            const origC = document.createElement('canvas'); origC.width = src.cols; origC.height = src.rows; cv.imshow(origC, src);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); ycrcb.delete(); mask.delete(); cr.delete(); cb.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      perspective: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">透视变换</h2><p class="page-desc">对图像进行透视变换</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">变换</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let scale = 0.5;
+          $$('#sliders')[0].appendChild(createSlider('缩放', 0.3, 2, scale, 0.1, v => scale = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), w = src.cols, h = src.rows;
+            const srcPts = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, w, 0, w, h, 0, h]);
+            const offset = w * (1 - scale) / 2;
+            const dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [offset, offset, w - offset, offset, w - offset, h - offset, offset, h - offset]);
+            const M = cv.getPerspectiveTransform(srcPts, dstPts), dst = new cv.Mat();
+            cv.warpPerspective(src, dst, M, new cv.Size(w, h));
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete(); M.delete(); srcPts.delete(); dstPts.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      morph2: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">顶帽底帽变换</h2><p class="page-desc">形态学顶帽/底帽/梯度</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="types" class="tabs"></div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let op = 'tophat', ksize = 15;
+          $$('#types')[0].innerHTML = ['tophat', 'blackhat', 'gradient'].map(t => `<button class="tab${t === 'tophat' ? ' active' : ''}" data-op="${t}">${t === 'tophat' ? '顶帽' : t === 'blackhat' ? '底帽' : '梯度'}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); op = tab.dataset.op; }));
+          $$('#sliders')[0].appendChild(createSlider('核大小', 3, 31, ksize, 2, v => ksize = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat(), k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(ksize, ksize));
+            let mop; if (op === 'tophat') mop = cv.MORPH_TOPHAT; else if (op === 'blackhat') mop = cv.MORPH_BLACKHAT; else mop = cv.MORPH_GRADIENT;
+            cv.morphologyEx(src, dst, mop, k);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete(); k.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      filter: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">图像滤镜</h2><p class="page-desc">各种图像滤镜效果</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">选择滤镜</div><div id="types" class="tabs"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let filter = 'none';
+          $$('#types')[0].innerHTML = ['none', 'sepia', 'invert', 'posterize', 'saturate', 'brighten', 'darken'].map(f => `<button class="tab${f === 'none' ? ' active' : ''}" data-filter="${f}">${f.charAt(0).toUpperCase() + f.slice(1)}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); filter = tab.dataset.filter; }));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat();
+            if (filter === 'none') src.copyTo(dst);
+            else if (filter === 'sepia') cv.cvtColor(src, dst, cv.COLOR_RGB2GRAY);
+            else if (filter === 'invert') cv.bitwise_not(src, dst);
+            else {
+              const [b, g, r] = [new cv.Mat(), new cv.Mat(), new cv.Mat()];
+              cv.split(src, [b, g, r]);
+              if (filter === 'posterize') { const gray = new cv.Mat(); cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY); cv.threshold(gray, gray, 100, 255, cv.THRESH_BINARY); cv.merge([gray, gray, gray], dst); gray.delete(); }
+              else if (filter === 'saturate') { const hsv = new cv.Mat(); cv.cvtColor(src, hsv, cv.COLOR_RGB2HSV); const channels = new cv.MatVector(); cv.split(hsv, channels); channels.get(1).convertTo(channels.get(1), -1, 1.5, 0); cv.merge(channels, dst); cv.cvtColor(dst, dst, cv.COLOR_HSV2RGB); hsv.delete(); channels.delete(); }
+              else if (filter === 'brighten') src.convertTo(dst, -1, 1, 50);
+              else if (filter === 'darken') src.convertTo(dst, -1, 1, -50);
+              [b, g, r].forEach(m => m.delete());
+            }
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      watercolor: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">水彩效果</h2><p class="page-desc">图像水彩画效果</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let sigma = 5, ksize = 21;
+          $$('#sliders')[0].appendChild(createSlider('模糊', 1, 31, ksize, 2, v => ksize = v));
+          $$('#sliders')[0].appendChild(createSlider('细节', 1, 10, sigma, 1, v => sigma = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), blurred = new cv.Mat(), dst = new cv.Mat();
+            cv.bilateralFilter(src, blurred, ksize, sigma * 2, sigma / 2);
+            cv.stylization(blurred, dst, { sigma_s: sigma * 30, sigma_r: sigma });
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); blurred.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      cartoon: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">漫画效果</h2><p class="page-desc">图像卡通化处理</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let seg = 50;
+          $$('#sliders')[0].appendChild(createSlider('分割数', 1, 200, seg, 1, v => seg = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat();
+            cv.pyrDown(src, dst);
+            for (let i = 0; i < 3; i++) cv.pyrDown(dst, dst);
+            cv.pyrUp(dst, dst);
+            for (let i = 0; i < 3; i++) cv.pyrUp(dst, dst);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      emboss: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">浮雕效果</h2><p class="page-desc">图像浮雕滤镜</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let depth = 1;
+          $$('#sliders')[0].appendChild(createSlider('深度', 0.1, 5, depth, 0.1, v => depth = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), gray = new cv.Mat(), dst = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+            const kernel = cv.Mat.fromArray(3, 3, cv.CV_32F, [-1, 0, 1, -2, 1, 2, -1, 0, 1]);
+            cv.filter2D(gray, dst, cv.CV_32F, kernel.mul(depth));
+            cv.convertScaleAbs(dst, dst);
+            cv.cvtColor(dst, dst, cv.COLOR_GRAY2RGBA);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); gray.delete(); dst.delete(); kernel.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      vintage: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">复古滤镜</h2><p class="page-desc">怀旧风格滤镜</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let sepia = 0.5;
+          $$('#sliders')[0].appendChild(createSlider('强度', 0, 1, sepia, 0.1, v => sepia = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat();
+            const kernel = new cv.Mat(3, 3, cv.CV_32F, [0.272, 0.534, 0.131, 0.349, 0.686, 0.168, 0.393, 0.769, 0.189]);
+            cv.transform(src, dst, kernel);
+            if (sepia < 1) { const blend = new cv.Mat(); src.convertTo(blend, -1, 1 - sepia, 0); dst.convertTo(dst, -1, sepia, 0); cv.add(blend, dst, dst); blend.delete(); }
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete(); kernel.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      text: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">添加文字</h2><p class="page-desc">在图像上添加文字水印</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">文字参数</div><div class="param-row"><span class="param-label">文字内容</span><input type="text" id="textInput" value="OpenCV" style="width: 200px;"></div><div class="param-row"><span class="param-label">字体大小</span><input type="number" id="fontSize" value="24" min="8" max="100" style="width: 80px;"></div><div class="param-row"><span class="param-label">文字颜色</span><input type="color" id="textColor" value="#ffffff"></div><div class="btn-group"><button class="btn btn-primary" id="apply">添加</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = src.clone();
+            const text = $('#textInput').value || 'OpenCV';
+            const size = parseInt($('#fontSize').value) || 24;
+            const color = $('#textColor').value;
+            const r = parseInt(color.slice(1, 3), 16), g = parseInt(color.slice(3, 5), 16), b = parseInt(color.slice(5, 7), 16);
+            cv.putText(dst, text, new cv.Point(20, dst.rows - 20), cv.FONT_HERSHEY_SIMPLEX, size / 10, new cv.Scalar(b, g, r, 255), 2);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      inpaint: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">图像修复</h2><p class="page-desc">去除图像中的不需要的元素</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">修复模式</div><div id="types" class="tabs"></div><div id="sliders"></div><div class="info-box"><p>提示: 在原图上绘制需要修复的区域</p></div><div class="btn-group"><button class="btn btn-primary" id="apply">修复</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div class="compare-view"><div class="compare-item"><div class="compare-label">原图</div><div id="orig" class="canvas-wrapper"></div></div><div class="compare-item"><div class="compare-label">修复后</div><div id="result" class="canvas-wrapper"></div></div></div>
+          `;
+          let srcCanvasCopy = null;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; srcCanvasCopy = canvas; });
+          let mode = 'ns', radius = 10;
+          $$('#types')[0].innerHTML = ['ns', 'telea'].map(m => `<button class="tab${m === 'ns' ? ' active' : ''}" data-mode="${m}">${m === 'ns' ? 'Navier-Stokes' : 'Telea'}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); mode = tab.dataset.mode; }));
+          $$('#sliders')[0].appendChild(createSlider('半径', 1, 30, radius, 1, v => radius = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), mask = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC1), dst = new cv.Mat();
+            // 简单处理：创建圆形mask
+            const center = new cv.Point(src.cols / 2, src.rows / 2);
+            cv.circle(mask, center, radius * 5, new cv.Scalar(255), -1);
+            if (mode === 'ns') cv.inpaint(src, mask, dst, radius, cv.INPAINT_NS);
+            else cv.inpaint(src, mask, dst, radius, cv.INPAINT_TELEA);
+            const origC = document.createElement('canvas'); origC.width = src.cols; origC.height = src.rows; cv.imshow(origC, src);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); mask.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      segmentation: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">前景分割</h2><p class="page-desc">分离图像前景和背景</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">分割方法</div><div id="types" class="tabs"></div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">分割</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div class="compare-view"><div class="compare-item"><div class="compare-label">原图</div><div id="orig" class="canvas-wrapper"></div></div><div class="compare-item"><div class="compare-label">分割结果</div><div id="result" class="canvas-wrapper"></div></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          let method = 'grabcut', iterations = 5;
+          $$('#types')[0].innerHTML = ['grabcut', 'watershed', 'floodfill'].map(m => `<button class="tab${m === 'grabcut' ? ' active' : ''}" data-method="${m}">${m === 'grabcut' ? 'GrabCut' : m === 'watershed' ? '分水岭' : '泛水填充'}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); method = tab.dataset.method; }));
+          $$('#sliders')[0].appendChild(createSlider('迭代次数', 1, 20, iterations, 1, v => iterations = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat();
+            src.copyTo(dst);
+            if (method === 'grabcut') {
+              const bgdModel = new cv.Mat(), fgdModel = new cv.Mat();
+              const rect = new cv.Rect(10, 10, src.cols - 20, src.rows - 20);
+              cv.grabCut(src, bgdModel, fgdModel, rect, iterations, cv.GC_INIT_WITH_RECT);
+              const mask = new cv.Mat();
+              cv.compare(dst, new cv.Scalar(0), mask, cv.CMP_EQ);
+              dst.setTo(new cv.Scalar(0, 255, 0), mask);
+              bgdModel.delete(); fgdModel.delete(); mask.delete();
+            } else if (method === 'watershed') {
+              const gray = new cv.Mat(), thresh = new cv.Mat();
+              cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY);
+              cv.threshold(gray, thresh, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+              cv.watershed(src, thresh);
+              const resultC = document.createElement('canvas'); resultC.width = src.cols; resultC.height = src.rows; cv.imshow(resultC, thresh);
+              showResult('result', resultC);
+              src.delete(); gray.delete(); thresh.delete(); dst.delete();
+              return;
+            } else {
+              const seed = new cv.Point(src.cols / 2, src.rows / 2);
+              cv.floodFill(dst, seed, new cv.Scalar(0, 255, 0));
+            }
+            const origC = document.createElement('canvas'); origC.width = src.cols; origC.height = src.rows; cv.imshow(origC, src);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      chromakey: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">抠图换背景</h2><p class="page-desc">绿幕/蓝幕背景移除</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">背景设置</div><div id="types" class="tabs"></div><div class="card"><div class="card-title">新背景图片</div><div id="uploadBg"></div></div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">替换</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div id="result" class="canvas-wrapper"></div></div>
+          `;
+          let bgCanvas = null;
+          uploadImage('upload', (canvas, img) => { srcCanvas = canvas; srcImage = img; });
+          uploadImage('uploadBg', (canvas) => { bgCanvas = canvas; });
+          let type = 'green', thr = 30;
+          $$('#types')[0].innerHTML = ['green', 'blue', 'red', 'yellow'].map(t => `<button class="tab${t === 'green' ? ' active' : ''}" data-type="${t}">${t === 'green' ? '绿色' : t === 'blue' ? '蓝色' : t === 'red' ? '红色' : '黄色'}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); type = tab.dataset.type; }));
+          $$('#sliders')[0].appendChild(createSlider('阈值', 5, 100, thr, 1, v => thr = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat(), mask = new cv.Mat();
+            let lower, upper;
+            if (type === 'green') { lower = new cv.Scalar(35, 40, 25); upper = new cv.Scalar(90, 255, 255); }
+            else if (type === 'blue') { lower = new cv.Scalar(90, 50, 30); upper = new cv.Scalar(150, 255, 255); }
+            else if (type === 'red') { lower = new cv.Scalar(0, 50, 50); upper = new cv.Scalar(20, 255, 255); }
+            else { lower = new cv.Scalar(20, 50, 50); upper = new cv.Scalar(40, 255, 255); }
+            const hsv = new cv.Mat(); cv.cvtColor(src, hsv, cv.COLOR_RGB2HSV);
+            cv.inRange(hsv, lower, upper, mask);
+            cv.medianBlur(mask, mask, 5);
+            if (bgCanvas) {
+              const bg = cv.imread(bgCanvas), resizedBg = new cv.Mat();
+              cv.resize(bg, resizedBg, new cv.Size(src.cols, src.rows));
+              bg.delete();
+              const masked = new cv.Mat(), maskedBg = new cv.Mat();
+              cv.bitwise_and(src, src, masked, mask);
+              cv.bitwise_and(resizedBg, resizedBg, maskedBg, ~mask);
+              cv.add(masked, maskedBg, dst);
+              resizedBg.delete(); masked.delete(); maskedBg.delete();
+            } else {
+              src.copyTo(dst);
+            }
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); hsv.delete(); mask.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      sharpen: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">锐化处理</h2><p class="page-desc">增强图像边缘和细节</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">锐化</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div class="compare-view"><div class="compare-item"><div class="compare-label">原图</div><div id="orig" class="canvas-wrapper"></div></div><div class="compare-item"><div class="compare-label">锐化后</div><div id="result" class="canvas-wrapper"></div></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => {
+            srcCanvas = canvas; srcImage = img;
+            const origC = document.createElement('canvas'); origC.width = img.width; origC.height = img.height; origC.getContext('2d').drawImage(img, 0, 0);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+          });
+          let strength = 1;
+          $$('#sliders')[0].appendChild(createSlider('强度', 0.1, 5, strength, 0.1, v => strength = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat();
+            const kernel = cv.Mat.fromArray(3, 3, cv.CV_32F, [0, -1, 0, -1, 5, -1, 0, -1, 0]);
+            cv.filter2D(src, dst, cv.CV_32F, kernel.mul(strength));
+            cv.convertScaleAbs(dst, dst);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete(); kernel.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      noise: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">噪声添加</h2><p class="page-desc">为图像添加高斯/椒盐噪声</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="types" class="tabs"></div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">添加噪声</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div class="compare-view"><div class="compare-item"><div class="compare-label">原图</div><div id="orig" class="canvas-wrapper"></div></div><div class="compare-item"><div class="compare-label">噪声后</div><div id="result" class="canvas-wrapper"></div></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => {
+            srcCanvas = canvas; srcImage = img;
+            const origC = document.createElement('canvas'); origC.width = img.width; origC.height = img.height; origC.getContext('2d').drawImage(img, 0, 0);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+          });
+          let type = 'gaussian', mean = 0, sigma = 30;
+          $$('#types')[0].innerHTML = ['gaussian', 'salt', 'pepper', 'speckle'].map(t => `<button class="tab${t === 'gaussian' ? ' active' : ''}" data-type="${t}">${t === 'gaussian' ? '高斯' : t === 'salt' ? '盐粒' : t === 'pepper' ? '胡椒' : '斑点'}</button>`).join('');
+          $$('#types')[0].querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { $$('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); type = tab.dataset.type; $$('#sliders')[0].style.display = type === 'gaussian' ? 'block' : 'none'; }));
+          $$('#sliders')[0].appendChild(createSlider('均值', -50, 50, mean, 5, v => mean = v));
+          $$('#sliders')[0].appendChild(createSlider('标准差', 5, 100, sigma, 5, v => sigma = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), dst = new cv.Mat();
+            src.copyTo(dst);
+            if (type === 'gaussian') {
+              const noise = new cv.Mat(src.rows, src.cols, cv.CV_32F);
+              cv.randu(noise, new cv.Scalar(mean), new cv.Scalar(sigma));
+              const floatSrc = new cv.Mat(); src.convertTo(floatSrc, cv.CV_32F);
+              cv.add(floatSrc, noise, dst);
+              cv.convertScaleAbs(dst, dst);
+              noise.delete(); floatSrc.delete();
+            } else if (type === 'salt') {
+              const amount = 0.05;
+              const n = Math.floor(src.rows * src.cols * amount);
+              for (let k = 0; k < n; k++) {
+                const i = Math.floor(Math.random() * src.rows);
+                const j = Math.floor(Math.random() * src.cols);
+                dst.ucharAt(i, j * 4) = 255; dst.ucharAt(i, j * 4 + 1) = 255; dst.ucharAt(i, j * 4 + 2) = 255;
+              }
+            } else if (type === 'pepper') {
+              const amount = 0.05;
+              const n = Math.floor(src.rows * src.cols * amount);
+              for (let k = 0; k < n; k++) {
+                const i = Math.floor(Math.random() * src.rows);
+                const j = Math.floor(Math.random() * src.cols);
+                dst.ucharAt(i, j * 4) = 0; dst.ucharAt(i, j * 4 + 1) = 0; dst.ucharAt(i, j * 4 + 2) = 0;
+              }
+            } else {
+              const noise = new cv.Mat(src.rows, src.cols, cv.CV_32F);
+              cv.randn(noise, new cv.Scalar(0), new cv.Scalar(sigma));
+              const floatSrc = new cv.Mat(); src.convertTo(floatSrc, cv.CV_32F);
+              cv.addWeighted(floatSrc, 1, noise, 0.5, 0, dst);
+              cv.convertScaleAbs(dst, dst);
+              noise.delete(); floatSrc.delete();
+            }
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      },
+      clahe: {
+        render: () => {
+          $$('.content')[0].innerHTML = `
+            <h2 class="page-title">自适应直方图均衡</h2><p class="page-desc">CLAHE对比度受限自适应直方图均衡化</p>
+            <div class="card"><div class="card-title">上传图片</div><div id="upload"></div></div>
+            <div class="card"><div class="card-title">参数</div><div id="sliders"></div><div class="btn-group"><button class="btn btn-primary" id="apply">应用</button><button class="btn btn-secondary" id="download">下载</button></div></div>
+            <div class="card"><div class="card-title">结果</div><div class="compare-view"><div class="compare-item"><div class="compare-label">原图</div><div id="orig" class="canvas-wrapper"></div></div><div class="compare-item"><div class="compare-label">均衡后</div><div id="result" class="canvas-wrapper"></div></div></div>
+          `;
+          uploadImage('upload', (canvas, img) => {
+            srcCanvas = canvas; srcImage = img;
+            const origC = document.createElement('canvas'); origC.width = img.width; origC.height = img.height; origC.getContext('2d').drawImage(img, 0, 0);
+            $('#orig').innerHTML = ''; $('#orig').appendChild(origC);
+          });
+          let clipLimit = 2.0, tileSize = 8;
+          $$('#sliders')[0].appendChild(createSlider('对比度限制', 1, 10, clipLimit, 0.5, v => clipLimit = v));
+          $$('#sliders')[0].appendChild(createSlider('网格大小', 4, 16, tileSize, 1, v => tileSize = v));
+          $('#apply').addEventListener('click', () => {
+            if (!srcCanvas) { alert('请先上传图片'); return; }
+            const src = cv.imread(srcCanvas), gray = new cv.Mat(), dst = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+            const clahe = cv.createCLAHE(clipLimit, new cv.Size(tileSize, tileSize));
+            clahe.apply(gray, dst);
+            cv.cvtColor(dst, dst, cv.COLOR_GRAY2RGBA);
+            const resultC = document.createElement('canvas'); resultC.width = dst.cols; resultC.height = dst.rows; cv.imshow(resultC, dst);
+            showResult('result', resultC);
+            src.delete(); gray.delete(); dst.delete();
+          });
+          $('#download').addEventListener('click', downloadResult);
+        }
+      }
+    };
+
+    // ========== 导航初始化 ==========
+    const initNav = () => {
+      const menu = $('#navMenu');
+      menu.innerHTML = navItems.map(item => `<div class="nav-item${item.id === 'home' ? ' active' : ''}" data-page="${item.id}"><svg viewBox="0 0 24 24" stroke-width="2">${item.icon}</svg><span>${item.label}</span></div>`).join('');
+      menu.addEventListener('click', (e) => {
+        const target = e.target.closest('.nav-item');
+        if (target) {
+          const page = target.dataset.page;
+          $$('.nav-item').forEach(i => i.classList.remove('active'));
+          target.classList.add('active');
+          switchPage(page);
+        }
+      });
+    };
+
+    const switchPage = (pageName) => {
+      if (pages[pageName]) pages[pageName].render();
+    };
+
+    // ========== OpenCV 加载 ==========
+    const loadOpenCV = (onProgress) => {
+      return new Promise((resolve, reject) => {
+        if (window.cv) { resolve(); return; }
+        const script = document.createElement('script');
+        script.src = 'opencv/opencv.js';
+        script.async = true;
+        if (onProgress) { onProgress(0); let loaded = 0; const interval = setInterval(() => { loaded += 2; if (loaded < 90) onProgress(loaded); }, 100); script.onload = () => { clearInterval(interval); onProgress(95); const check = setInterval(() => { if (window.cv) { clearInterval(check); onProgress(100); resolve(); } }, 50); }; script.onerror = () => { clearInterval(interval); script.src = 'https://docs.opencv.org/4.9.0/opencv.js'; document.head.appendChild(script); }; }
+        document.head.appendChild(script);
+      });
+    };
+
+    const init = async () => {
+      const app = $('#app');
+      app.innerHTML = `<div class="loading-overlay"><div class="loading-spinner"></div><div class="loading-text">加载 OpenCV.js...</div><div class="loading-progress-bar"><div class="loading-progress-fill" id="progress"></div></div></div>`;
+      try {
+        await loadOpenCV((p) => { $('#progress').style.width = `${p}%`; });
+        app.innerHTML = `<nav class="nav"><div class="nav-header"><div class="nav-logo"><svg viewBox="0 0 36 36"><rect width="36" height="36" rx="8" fill="#252542"/><text x="18" y="25" text-anchor="middle" fill="url(#g)" font-family="Arial" font-weight="bold" font-size="14">CV</text><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#00d4ff"/><stop offset="100%" stop-color="#00ff88"/></linearGradient></defs></svg><h1>OpenCV 调试</h1></div></div><div class="nav-menu" id="navMenu"></div></nav><main class="main"><div class="content"></div></main>`;
+        initNav();
+        switchPage('home');
+      } catch (err) {
+        app.innerHTML = `<div class="loading-overlay"><div class="loading-text" style="color: #ff4466;">加载失败</div><button class="btn btn-primary" onclick="location.reload()">重试</button></div>`;
+      }
+    };
+
+    init();
+  </script>
+</body>
+</html>
